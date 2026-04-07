@@ -5,10 +5,10 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/afocus/gosoap/xsd"
+	"github.com/cnwangfei/go-soap/xsd"
 )
 
-func checkBaseTypeKind(k reflect.Kind) (string, error) {
+func CheckBaseTypeKind(k reflect.Kind) (string, error) {
 
 	switch k {
 	case reflect.String:
@@ -35,7 +35,7 @@ func checkBaseTypeKind(k reflect.Kind) (string, error) {
 
 }
 
-func getTagsInfo(t reflect.StructField) (string, bool) {
+func GetTagsInfo(t reflect.StructField) (string, bool) {
 	required := false
 	name := t.Name
 	tags := strings.Split(t.Tag.Get("wsdl"), ",")

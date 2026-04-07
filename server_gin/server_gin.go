@@ -1,18 +1,19 @@
-package gosoap
+package server_gin
 
 import (
 	"bytes"
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"reflect"
-	"strings"
+	"strconv"
 
-	"github.com/afocus/gosoap/soap"
-	"github.com/afocus/gosoap/wsdl"
-	"github.com/afocus/gosoap/xsd"
+	"github.com/cnwangfei/go-soap"
+	"github.com/cnwangfei/go-soap/soap"
+	"github.com/cnwangfei/go-soap/wsdl"
+	"github.com/cnwangfei/go-soap/xsd"
+	"github.com/gin-gonic/gin"
 )
 
 // Methoder 方法接口
@@ -80,38 +81,26 @@ func (s *Server) Register(method ...Methoder) error {
 }
 
 // Service 单服务监听
-func (s *Server) Service(port string) error {
-	if erro := s.bind(port); erro != nil {
-		return erro
-	}
-	return listen(port)
+//
+// 注册路由
+func (s *Server) Service(g *gin.Engine, port int) error {
+	g.Any(fmt.Sprintf("/%v", s.name), s.handleFunc)
+	return s.bind(strconv.Itoa(port))
 }
 
 // MulitService 多服务监听
-func MulitService(port string, server ...*Server) error {
+func MulitService(g *gin.Engine, port int, server ...*Server) error {
 	for _, v := range server {
-		if erro := v.bind(port); erro != nil {
-			return erro
+		if err := v.Service(g, port); err != nil {
+			return err
 		}
 	}
-	return listen(port)
+	return nil
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
-
-func responeHeader(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "text/xml; charset=utf-8")
-	w.Header().Set("Accpet", "text/xml")
-	w.Write([]byte(xml.Header))
-}
-
-// 监听服务
-// 这里可以设置http 比如超时时间 最大连接数等 后续再做
-func listen(port string) error {
-	return http.ListenAndServe(":"+port, nil)
-}
 
 // 解析参数并转化为对应的wsdl message
 func (s *Server) parseMessage(name string, t reflect.Type, field string) error {
@@ -125,9 +114,9 @@ func (s *Server) parseMessage(name string, t reflect.Type, field string) error {
 		}
 		// 遍历结构体参数列表
 		for i := 0; i < retype.NumField(); i++ {
-			name, _ := getTagsInfo(retype.Field(i))
+			name, _ := gosoap.GetTagsInfo(retype.Field(i))
 			ik := retype.Field(i).Type.Kind()
-			ts, erro := checkBaseTypeKind(ik)
+			ts, erro := gosoap.CheckBaseTypeKind(ik)
 			// 如果非基本类型则转为自有命名空间的自定义类型
 			if erro != nil {
 				ts = "tns:" + name + ik.String()
@@ -189,33 +178,42 @@ func (s *Server) regWsdlBindPort(name string) {
 	}
 	s.wsdl.Binding.Operations = append(s.wsdl.Binding.Operations, bindop)
 }
-
-func (s *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		// 网址带参数wsdl则显示wsdl文件
-		if strings.EqualFold("wsdl", r.URL.RawQuery) {
-			responeHeader(w)
-			w.Write(s.wsdlcache)
-		} else {
-			// 其他情况返回一个提示信息
-			w.Write([]byte("welcome"))
-		}
-		return
-	}
-	// post请求则处理接受的xml
-	// 读取post的body信息
-	b, erro := ioutil.ReadAll(r.Body)
-	if erro != nil {
+func (s *Server) handleFunc(c *gin.Context) {
+	switch c.Request.Method {
+	case "GET":
+		s.handleFunc_Wsdl(c)
+	case "POST":
+		s.handleFunc_Other(c)
+	default:
 		serverSoapFault(
-			w, NewSoapFault("Server", "读取body出错", erro.Error()),
+			c, NewSoapFault("Server", "不支持这个方法", ""),
+		)
+	}
+}
+
+// 网址带参数wsdl则显示wsdl文件
+func (s *Server) handleFunc_Wsdl(c *gin.Context) {
+	// 网址带参数wsdl则显示wsdl文件
+	if _, ok := c.GetQuery("wsdl"); ok {
+		c.Header("Content-Type", "text/xml; charset=utf-8")
+		c.String(http.StatusOK, string(s.wsdlcache))
+	} else {
+		c.String(http.StatusOK, "welcome")
+	}
+}
+
+// 其他函数
+func (s *Server) handleFunc_Other(c *gin.Context) {
+	// 转化为Envelope对象
+	env := soap.Envelope{}
+	err := c.ShouldBindBodyWithXML(&env)
+	if err != nil {
+		serverSoapFault(
+			c, NewSoapFault("Server", "接受到的data无效", ""),
 		)
 		return
 	}
-	defer r.Body.Close()
 
-	// 转化为Envelope对象
-	env := soap.Envelope{}
-	xml.Unmarshal(b, &env)
 	// 解析请求的方法名字
 	var startEle *xml.StartElement
 	reader := bytes.NewReader(env.Body.Content)
@@ -232,27 +230,26 @@ func (s *Server) handleFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	if startEle == nil {
 		serverSoapFault(
-			w, NewSoapFault("Server", "接受到的data无效", ""),
+			c, NewSoapFault("Server", "接受到的data无效", ""),
 		)
 		return
 	}
-	s.request(w, de, startEle)
+	s.request(c, de, startEle)
 }
 
-func serverSoapFault(w http.ResponseWriter, fault *SoapFault) {
-	responeHeader(w)
+// 返回错误
+func serverSoapFault(c *gin.Context, fault *SoapFault) {
 	data, _ := xml.Marshal(fault)
-	b, _ := xml.Marshal(soap.NewEnvelope(data))
-	w.Write(b)
+	c.XML(http.StatusOK, soap.NewEnvelope(data))
 }
 
-func (s *Server) request(w http.ResponseWriter, de *xml.Decoder, startEle *xml.StartElement) {
+func (s *Server) request(c *gin.Context, de *xml.Decoder, startEle *xml.StartElement) {
 
 	mname := startEle.Name.Local
 	t, has := s.methods[mname]
 	if !has {
 		serverSoapFault(
-			w, NewSoapFault("Server", "没有这个方法:"+mname, ""),
+			c, NewSoapFault("Server", "没有这个方法:"+mname, ""),
 		)
 		return
 	}
@@ -262,7 +259,7 @@ func (s *Server) request(w http.ResponseWriter, de *xml.Decoder, startEle *xml.S
 	erro := de.DecodeElement(params, startEle)
 	if erro != nil {
 		serverSoapFault(
-			w, NewSoapFault("Client", "接受参数错误", erro.Error()),
+			c, NewSoapFault("Client", "接受参数错误", erro.Error()),
 		)
 		return
 	}
@@ -271,7 +268,7 @@ func (s *Server) request(w http.ResponseWriter, de *xml.Decoder, startEle *xml.S
 	// 处理返回值
 	fault := rets[0].Interface().(*SoapFault)
 	if fault != nil {
-		serverSoapFault(w, fault)
+		serverSoapFault(c, fault)
 		return
 	}
 	// 解析Out出参
@@ -290,14 +287,12 @@ func (s *Server) request(w http.ResponseWriter, de *xml.Decoder, startEle *xml.S
 	erro = en.EncodeElement(returns, soapbody)
 	if erro != nil {
 		serverSoapFault(
-			w, NewSoapFault("Server", "Respone错误", erro.Error()),
+			c, NewSoapFault("Server", "Respone错误", erro.Error()),
 		)
 		return
 	}
-	responeHeader(w)
-	b, _ := xml.Marshal(soap.NewEnvelope(buf.Bytes()))
-	w.Write(b)
 
+	c.XML(http.StatusOK, soap.NewEnvelope(buf.Bytes()))
 }
 
 func (s *Server) bind(port string) error {
@@ -309,23 +304,8 @@ func (s *Server) bind(port string) error {
 		return erro
 	}
 	s.wsdlcache = append(s.wsdlcache, b...)
-	http.HandleFunc("/"+s.name, s.handleFunc)
 	return nil
 }
-
-// func get_internal() string {
-// 	addrs, err := net.InterfaceAddrs()
-// 	if err == nil {
-// 		for _, a := range addrs {
-// 			if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-// 				if ipnet.IP.To4() != nil {
-// 					return ipnet.IP.String()
-// 				}
-// 			}
-// 		}
-// 	}
-// 	return ""
-// }
 
 func (s *Server) buildWsdl() {
 	def := &wsdl.Definitions{

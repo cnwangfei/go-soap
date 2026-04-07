@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/afocus/gosoap"
 	"math/rand"
 	"time"
+
+	server "github.com/cnwangfei/go-soap/server_gin"
+	"github.com/gin-gonic/gin"
 )
 
 // 简单的
@@ -21,10 +23,10 @@ type User struct {
 	}
 }
 
-func (u *User) Action() *gosoap.SoapFault {
+func (u *User) Action() *server.SoapFault {
 
 	if u.In.Id != 100 {
-		return gosoap.NewSoapFault("输入参数错误", "id必须是100", "")
+		return server.NewSoapFault("输入参数错误", "id必须是100", "")
 	}
 
 	u.Out.Id = u.In.Id
@@ -53,7 +55,7 @@ type DataList struct {
 	}
 }
 
-func (d *DataList) Action() *gosoap.SoapFault {
+func (d *DataList) Action() *server.SoapFault {
 	fmt.Printf("%+v\n", d.In)
 	d.Out.Total = 10
 	d.Out.Items = make([]struct {
@@ -80,8 +82,14 @@ func (d *DataList) Action() *gosoap.SoapFault {
 }
 
 func main() {
-	s := gosoap.NewServer("people")
-	s.Register(new(User), new(DataList))
-
-	panic(s.Service("8080"))
+	g := gin.Default()
+	server.BindHost = "10.100.0.7"
+	s := server.NewServer("people")
+	s.Register(new(User))
+	//s.Service(g, 20000)
+	d := server.NewServer("data")
+	d.Register(new(DataList))
+	//s.Service(g, 20000)
+	server.MulitService(g, 20000, s, d)
+	g.Run(":20000")
 }
