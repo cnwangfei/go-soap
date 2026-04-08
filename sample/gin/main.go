@@ -23,7 +23,7 @@ type User struct {
 	}
 }
 
-func (u *User) Action() *server.SoapFault {
+func (u *User) Action(c *gin.Context) *server.SoapFault {
 
 	if u.In.Id != 100 {
 		return server.NewSoapFault("输入参数错误", "id必须是100", "")
@@ -55,7 +55,7 @@ type DataList struct {
 	}
 }
 
-func (d *DataList) Action() *server.SoapFault {
+func (d *DataList) Action(c *gin.Context) *server.SoapFault {
 	fmt.Printf("%+v\n", d.In)
 	d.Out.Total = 10
 	d.Out.Items = make([]struct {

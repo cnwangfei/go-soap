@@ -19,7 +19,7 @@ import (
 // Methoder 方法接口
 // 所有注册的服务方法必须实现此接口
 type Methoder interface {
-	Action() *SoapFault
+	Action(gctx *gin.Context) *SoapFault
 }
 
 // BindHost 绑定的访问地址
@@ -264,7 +264,9 @@ func (s *Server) request(c *gin.Context, de *xml.Decoder, startEle *xml.StartEle
 		return
 	}
 	// 调用action方法
-	rets := v.MethodByName("Action").Call([]reflect.Value{})
+	rets := v.MethodByName("Action").Call([]reflect.Value{
+		reflect.ValueOf(c),
+	})
 	// 处理返回值
 	fault := rets[0].Interface().(*SoapFault)
 	if fault != nil {
