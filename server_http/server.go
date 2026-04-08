@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 
+	gosoap "github.com/cnWangFei/go-soap"
 	"github.com/cnWangFei/go-soap/soap"
 	"github.com/cnWangFei/go-soap/wsdl"
 	"github.com/cnWangFei/go-soap/xsd"
