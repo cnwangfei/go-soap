@@ -10,10 +10,9 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/cnwangfei/go-soap"
-	"github.com/cnwangfei/go-soap/soap"
-	"github.com/cnwangfei/go-soap/wsdl"
-	"github.com/cnwangfei/go-soap/xsd"
+	"github.com/cnWangFi/go-soap/soap"
+	"github.com/cnWangFi/go-soap/wsdl"
+	"github.com/cnWangFi/go-soap/xsd"
 )
 
 // Methoder 方法接口

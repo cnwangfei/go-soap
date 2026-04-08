@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	server "github.com/cnwangfei/go-soap/server_gin"
+	server "github.com/cnWangFi/go-soap/server_gin"
 	"github.com/gin-gonic/gin"
 )
 

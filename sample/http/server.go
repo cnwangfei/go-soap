@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	server "github.com/cnwangfei/go-soap/server_http"
+	server "github.com/cnWangFi/go-soap/server_http"
 )
 
 // 简单的
