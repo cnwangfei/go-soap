@@ -1,4 +1,4 @@
-module github.com/cnWangFi/go-soap
+module github.com/cnWangFei/go-soap
 
 go 1.26.1
 

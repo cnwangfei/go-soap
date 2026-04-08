@@ -9,9 +9,9 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/cnWangFi/go-soap/soap"
-	"github.com/cnWangFi/go-soap/wsdl"
-	"github.com/cnWangFi/go-soap/xsd"
+	"github.com/cnWangFei/go-soap/soap"
+	"github.com/cnWangFei/go-soap/wsdl"
+	"github.com/cnWangFei/go-soap/xsd"
 	"github.com/gin-gonic/gin"
 )
 
